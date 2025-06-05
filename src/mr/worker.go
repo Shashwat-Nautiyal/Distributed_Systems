@@ -1,48 +1,87 @@
 package mr
 
-import "fmt"
-import "log"
-import "net/rpc"
-import "hash/fnv"
+import (
+	"fmt"
+	"hash/fnv"
+	"io"
+	"log"
+	"net/rpc"
+	"os"
+	"time"
+)
 
-
-//
 // Map functions return a slice of KeyValue.
-//
 type KeyValue struct {
 	Key   string
 	Value string
 }
 
-//
 // use ihash(key) % NReduce to choose the reduce
 // task number for each KeyValue emitted by Map.
-//
 func ihash(key string) int {
 	h := fnv.New32a()
 	h.Write([]byte(key))
 	return int(h.Sum32() & 0x7fffffff)
 }
 
+func performMap(mapf func(string, string) []KeyValue, filename string, nReduce int, index int) bool {
+	// will create a 2D array in which every reducer will be alloted an arrau of keyValue pairs
+	kvall := make([][]KeyValue, nReduce)
+	file, err := os.Open(filename)
 
-//
-// main/mrworker.go calls this function.
-//
-func Worker(mapf func(string, string) []KeyValue,
-	reducef func(string, []string) string) {
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s Worker: can not open %v\n", time.Now().String(), filename)
+		return false
+	}
 
-	// Your worker implementation here.
+	content, err := io.ReadAll(file)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s Worker: can not read %v\n", time.Now().String(), filename)
+		return false
+	}
 
-	// uncomment to send the Example RPC to the coordinator.
-	// CallExample()
+	file.Close()
+
+	map_res := mapf(filename, string(content))
+
+	// intermediate data is genrated
+	// now map result is to be mappd with nReduce number of buckets
+	for _, key_value := range map_res {
+		index := ihash(key_value.Key) % nReduce
+		kvall[index] = append(kvall[index], key_value)
+	}
+
+	// write key-value to differnt json files
 
 }
 
-//
+// main/mrworker.go calls this function.
+func Worker(mapf func(string, string) []KeyValue,
+	reducef func(string, []string) string) {
+
+	for {
+		args := ReqArgs{}
+		reply := ReqReply{}
+
+		if !call("HandleReq", &args, &reply) {
+			fmt.Fprintf(os.Stderr, "%s Worker: exit", time.Now().String())
+			os.Exit(0)
+		}
+		if reply.Kind == "none" {
+			// all map and reduce tasks are done
+			continue
+		}
+
+		if reply.Kind == "map" {
+
+		}
+	}
+
+}
+
 // example function to show how to make an RPC call to the coordinator.
 //
 // the RPC argument and reply types are defined in rpc.go.
-//
 func CallExample() {
 
 	// declare an argument structure.
@@ -72,8 +111,13 @@ func CallExample() {
 // usually returns true.
 // returns false if something goes wrong.
 //
+
+// using interface{} to make the funciton accept generic argument & reply struct
 func call(rpcname string, args interface{}, reply interface{}) bool {
 	// c, err := rpc.DialHTTP("tcp", "127.0.0.1"+":1234")
+
+	// this func genreates unique Unix domain socket path for the coordinator process
+	// unique to our linux user
 	sockname := coordinatorSock()
 	c, err := rpc.DialHTTP("unix", sockname)
 	if err != nil {

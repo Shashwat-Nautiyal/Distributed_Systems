@@ -6,8 +6,10 @@ package mr
 // remember to capitalize all names.
 //
 
-import "os"
-import "strconv"
+import (
+	"os"
+	"strconv"
+)
 
 //
 // example to show how to declare the arguments
@@ -22,10 +24,19 @@ type ExampleReply struct {
 	Y int
 }
 
+type ReqArgs struct{}
+
+type ReqReply struct {
+	File    string
+	Kind    string
+	NReduce int
+	Index   int
+	Split   int
+}
+
 // Add your RPC definitions here.
 
-
-// Cook up a unique-ish UNIX-domain socket name
+// Cooks up a unique-ish UNIX-domain socket name
 // in /var/tmp, for the coordinator.
 // Can't use the current directory since
 // Athena AFS doesn't support UNIX-domain sockets.
