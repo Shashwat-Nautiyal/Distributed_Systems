@@ -191,7 +191,7 @@ func Worker(mapf func(string, string) []KeyValue,
 				// map has been performed on the file
 				// and interm data been stored in respected file buckets as per their key hashes
 
-				if !call("HandleResponse", &res_args, &res_reply) {
+				if !call("HandleRes", &res_args, &res_reply) {
 					fmt.Fprintf(os.Stderr, "%s Worker: exit", time.Now().String())
 					os.Exit(0)
 				}

@@ -105,6 +105,36 @@ func (c *Coordinator) HandleReq(args *ReqArgs, reply *ReqReply) error {
 	return nil
 }
 
+func (c *Coordinator) HandleRes(args *Res_args, reply *Res_reply) error {
+	now := time.Now()
+	var task *Task
+
+	if args.Kind == "map" {
+		task = c.M_tasks[args.Index]
+	} else {
+		task = c.R_tasks[args.Index]
+	}
+
+	//if the present time is greater than the task.timestamp+10 sec
+	// it => that the task might already have been reassigned
+	if now.Before(task.Timestamp.Add(10 * time.Second)) {
+		//before accessing time => Lock
+		task.Lock.Lock()
+		defer task.Lock.Unlock()
+
+		task.Status = COMPLETED
+		// Lock before accessing the coordinator state
+		c.mut.Lock()
+		if args.Kind == "map" {
+			c.M_remain--
+		} else {
+			c.R_remain--
+		}
+		c.mut.Unlock()
+	}
+	return nil
+}
+
 // func (c *Coordinator) Handle
 
 // start a thread that listens for RPCs from worker.go
