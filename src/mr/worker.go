@@ -65,7 +65,7 @@ func performMap(mapf func(string, string) []KeyValue, filename string, nReduce i
 	for i, kva := range kvall {
 
 		// making use of tempfile for atomic writes to ensure midway failures do not give half written files
-		oldname := fmt.Sprintf("temp_inter_%d-%d.json", index, nReduce)
+		oldname := fmt.Sprintf("temp_inter_%d_%d.json", index, nReduce)
 		tempfile, err := os.OpenFile(oldname, os.O_RDWR|os.O_CREATE, 0755)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s Worker: can not open temp file %v\n", time.Now().String(), oldname)
@@ -82,7 +82,7 @@ func performMap(mapf func(string, string) []KeyValue, filename string, nReduce i
 			}
 		}
 
-		newname := fmt.Sprintf("inter_%d-%d.json", index, i)
+		newname := fmt.Sprintf("inter_%d_%d.json", index, i)
 		if err := os.Rename(oldname, newname); err != nil {
 			fmt.Fprintf(os.Stderr, "%s Worker: map can not rename temp file %v\n", time.Now().String(), oldname)
 			return false
@@ -171,13 +171,14 @@ func Worker(mapf func(string, string) []KeyValue,
 		args := ReqArgs{}
 		reply := ReqReply{}
 
-		if !call("HandleReq", &args, &reply) {
+		if !call("Coordinator.HandleReq", &args, &reply) {
 			fmt.Fprintf(os.Stderr, "%s Worker: exit", time.Now().String())
 			os.Exit(0)
 		}
 		if reply.Kind == "none" {
 			// all map and reduce tasks are done
-			continue
+			break
+
 		}
 
 		res_args := Res_args{}
@@ -191,7 +192,7 @@ func Worker(mapf func(string, string) []KeyValue,
 				// map has been performed on the file
 				// and interm data been stored in respected file buckets as per their key hashes
 
-				if !call("HandleRes", &res_args, &res_reply) {
+				if !call("Coordinator.HandleRes", &res_args, &res_reply) {
 					fmt.Fprintf(os.Stderr, "%s Worker: exit", time.Now().String())
 					os.Exit(0)
 				}
@@ -205,7 +206,7 @@ func Worker(mapf func(string, string) []KeyValue,
 				res_args.Kind = "reduce"
 				res_args.Index = reply.Index
 
-				if !call("HandleRes", &res_args, &res_reply) {
+				if !call("Coordinator.HandleRes", &res_args, &res_reply) {
 					fmt.Fprintf(os.Stderr, "%s Worker: exit", time.Now().String())
 					os.Exit(0)
 				}

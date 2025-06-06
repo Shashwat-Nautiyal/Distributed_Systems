@@ -157,6 +157,11 @@ func (c *Coordinator) Done() bool {
 	ret := false
 
 	// Your code here.
+	c.mut.Lock()
+	if c.R_remain == 0 && c.M_remain == 0 {
+		ret = true
+	}
+	c.mut.Unlock()
 
 	return ret
 }
