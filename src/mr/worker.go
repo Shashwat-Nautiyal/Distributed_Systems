@@ -1,6 +1,7 @@
 package mr
 
 import (
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"io"
@@ -53,6 +54,32 @@ func performMap(mapf func(string, string) []KeyValue, filename string, nReduce i
 
 	// write key-value to differnt json files
 
+	for i, kva := range kvall {
+
+		oldname := fmt.Sprintf("temp_inter_%d-%d.json", index, nReduce)
+		tempfile, err := os.OpenFile(oldname, os.O_RDWR|os.O_CREATE, 0755)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s Worker: can not open temp file %v\n", time.Now().String(), oldname)
+			return false
+		}
+
+		defer os.Remove(oldname)
+
+		enc := json.NewEncoder(tempfile)
+		for _, kv := range kva {
+			if err := enc.Encode(&kv); err != nil {
+				fmt.Fprintf(os.Stderr, "%s Worker: can not write to temp file  %v\n", time.Now().String(), kv)
+				return false
+			}
+		}
+
+		newname := fmt.Sprintf("inter_%d-%d.json", index, i)
+		if err := os.Rename(oldname, newname); err != nil {
+			fmt.Fprintf(os.Stderr, "%s Worker: map can not rename temp file %v\n", time.Now().String(), oldname)
+			return false
+		}
+	}
+	return true
 }
 
 // main/mrworker.go calls this function.
@@ -72,7 +99,26 @@ func Worker(mapf func(string, string) []KeyValue,
 			continue
 		}
 
+		res_args := Res_args{}
+		res_reply := Res_reply{}
+
 		if reply.Kind == "map" {
+			if performMap(mapf, reply.File, reply.NReduce, reply.Index) {
+				fmt.Fprintf(os.Stderr, "%s Worker: map task performed successfully %s\n", time.Now().String(), reply.File)
+				res_args.Kind = "map"
+				res_args.Index = reply.Index
+				// map has been performed on the file
+				// and interm data been stored in respected file buckets as per their key hashes
+
+				if !call("HandleResponse", &res_args, &res_reply) {
+					fmt.Fprintf(os.Stderr, "%s Worker: exit", time.Now().String())
+					os.Exit(0)
+				}
+
+			} else {
+				fmt.Fprintf(os.Stderr, "%s Worker: map task failed\n", time.Now().String())
+			}
+		} else {
 
 		}
 	}

@@ -34,6 +34,13 @@ type ReqReply struct {
 	Split   int
 }
 
+type Res_args struct {
+	Kind  string
+	Index int
+}
+
+type Res_reply struct{}
+
 // Add your RPC definitions here.
 
 // Cooks up a unique-ish UNIX-domain socket name

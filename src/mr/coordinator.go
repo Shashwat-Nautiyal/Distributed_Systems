@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// state taht a task can be in
 const (
 	IDLE        = 0
 	IN_PROGRESS = 1
@@ -35,6 +36,7 @@ type Task struct {
 	Timestamp time.Time
 }
 
+// this func runs on a dedicated goroutine and montiors the statuus of the task being performed by worker
 func monitor(task *Task) {
 	time.Sleep(10 * time.Second)
 	task.Lock.Lock()
@@ -63,6 +65,7 @@ func (c *Coordinator) HandleReq(args *ReqArgs, reply *ReqReply) error {
 	// looking for map task
 	if c.M_remain != 0 {
 		for i, task := range c.M_tasks {
+			// lock before accessing the task
 			task.Lock.Lock()
 			defer task.Lock.Unlock()
 
@@ -136,7 +139,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c.M_remain = len(files)
 	c.R_remain = nReduce
 	c.mut = sync.Mutex{}
-	c.M_tasks = make([]*Task, len(files))
+	c.M_tasks = make([]*Task, len(files)) // pointer of slices for memory efficiency + it is not safe to copy mutexes
 	c.R_tasks = make([]*Task, nReduce)
 
 	// Your code here.
