@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/rpc"
 	"os"
+	"sort"
 	"time"
 )
 
@@ -16,6 +17,13 @@ type KeyValue struct {
 	Key   string
 	Value string
 }
+
+type ByKey []KeyValue
+
+// for sorting by key, implementing sort interface
+func (a ByKey) Len() int           { return len(a) }
+func (a ByKey) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByKey) Less(i, j int) bool { return a[i].Key < a[j].Key }
 
 // use ihash(key) % NReduce to choose the reduce
 // task number for each KeyValue emitted by Map.
@@ -56,6 +64,7 @@ func performMap(mapf func(string, string) []KeyValue, filename string, nReduce i
 
 	for i, kva := range kvall {
 
+		// making use of tempfile for atomic writes to ensure midway failures do not give half written files
 		oldname := fmt.Sprintf("temp_inter_%d-%d.json", index, nReduce)
 		tempfile, err := os.OpenFile(oldname, os.O_RDWR|os.O_CREATE, 0755)
 		if err != nil {
@@ -78,6 +87,78 @@ func performMap(mapf func(string, string) []KeyValue, filename string, nReduce i
 			fmt.Fprintf(os.Stderr, "%s Worker: map can not rename temp file %v\n", time.Now().String(), oldname)
 			return false
 		}
+	}
+	return true
+}
+
+func performReduce(reducef func(string, []string) string, split int, index int) bool {
+
+	// this will hold all key value pairs for this reduce task
+	var kva []KeyValue
+
+	for i := 0; i < split; i++ {
+		filename := fmt.Sprintf("inter_%d_%d.json", i, index)
+		file, err := os.Open(filename)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s Worker: can not read intermidiate file %v\n", time.Now().String(), filename)
+			return false
+		}
+
+		dec := json.NewDecoder(file)
+
+		for {
+			var kv KeyValue
+			if err := dec.Decode(&kv); err != nil {
+				break
+			}
+			kva = append(kva, kv)
+		}
+
+		file.Close()
+
+		// Now all json data has been decoded back to key value pairs
+		// now we can perform reduce on this data
+
+		sort.Sort(ByKey(kva))
+
+		oldname := fmt.Sprintf("temp-mr-out-%d", index)
+		newname := fmt.Sprintf("mr-out-%d", index)
+
+		tempfile, err := os.OpenFile(oldname, os.O_RDWR|os.O_CREATE, 0755)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s Worker: reduce can not open temp file %v\n", time.Now().String(), oldname)
+			return false
+		}
+		defer os.Remove(oldname)
+
+		// A bucket of NReduce may contain key value pairs of differnt keys
+		// Extracting data and applying reduce function on them
+		i := 0
+
+		for i < len(kva) {
+			j := i + 1
+			for j < len(kva) && kva[j].Key == kva[i].Key {
+				j++
+			}
+
+			values := []string{}
+
+			for k := i; k < j; k++ {
+				values = append(values, kva[k].Value)
+			}
+
+			r_output := reducef(kva[i].Key, values)
+
+			fmt.Fprintf(tempfile, "%v %v\n", kva[i].Key, r_output)
+			i = j
+
+		}
+
+		if err := os.Rename(oldname, newname); err != nil {
+			fmt.Fprintf(os.Stderr, "%s Worker: reduce can not rename temp file %v\n", time.Now().String(), oldname)
+			return false
+		}
+
 	}
 	return true
 }
@@ -119,8 +200,21 @@ func Worker(mapf func(string, string) []KeyValue,
 				fmt.Fprintf(os.Stderr, "%s Worker: map task failed\n", time.Now().String())
 			}
 		} else {
+			if performReduce(reducef, reply.Split, reply.Index) {
+				fmt.Fprintf(os.Stderr, "%s Worker: reduce task performed successfully\n", time.Now().String())
+				res_args.Kind = "reduce"
+				res_args.Index = reply.Index
 
+				if !call("HandleRes", &res_args, &res_reply) {
+					fmt.Fprintf(os.Stderr, "%s Worker: exit", time.Now().String())
+					os.Exit(0)
+				}
+			} else {
+				fmt.Fprintf(os.Stderr, "%s Worker: reduce task failed", time.Now().String())
+				os.Exit(0)
+			}
 		}
+		time.Sleep(time.Second)
 	}
 
 }
