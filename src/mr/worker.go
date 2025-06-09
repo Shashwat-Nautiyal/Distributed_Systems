@@ -9,6 +9,7 @@ import (
 	"net/rpc"
 	"os"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -56,7 +57,7 @@ func performMap(mapf func(string, string) []KeyValue, filename string, nReduce i
 	// intermediate data is genrated
 	// now map result is to be mappd with nReduce number of buckets
 	for _, key_value := range map_res {
-		index := ihash(key_value.Key) % nReduce
+		index := ihash(strings.ToLower(key_value.Key)) % nReduce
 		kvall[index] = append(kvall[index], key_value)
 	}
 

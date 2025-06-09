@@ -48,6 +48,15 @@ func monitor(task *Task) {
 		task.Status = IDLE
 		fmt.Fprint(os.Stderr, "%s Master: task %s failed, re-allocate to other workers\n", time.Now().String(), task.Filename)
 	}
+
+	// time.Sleep(10 * time.Second) // Check every second
+
+	// task.Lock.Lock()
+	// if task.Status == IN_PROGRESS && time.Since(task.Timestamp) > 10*time.Second {
+	// 	task.Status = IDLE // Reset if stale
+	// }
+	// task.Lock.Unlock()
+
 }
 
 // Your code here -- RPC handlers for the worker to call.
@@ -155,16 +164,9 @@ func (c *Coordinator) server() {
 // main/mrcoordinator.go calls Done() periodically to find out
 // if the entire job has finished.
 func (c *Coordinator) Done() bool {
-	ret := false
-
-	// Your code here.
 	c.mut.Lock()
-	if c.R_remain == 0 && c.M_remain == 0 {
-		ret = true
-	}
 	defer c.mut.Unlock()
-
-	return ret
+	return c.M_remain == 0 && c.R_remain == 0
 }
 
 // create a Coordinator.
