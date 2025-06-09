@@ -40,6 +40,7 @@ type Task struct {
 func monitor(task *Task) {
 	time.Sleep(10 * time.Second)
 	task.Lock.Lock()
+	defer task.Lock.Unlock()
 
 	if task.Status == COMPLETED {
 		fmt.Fprintf(os.Stderr, "%s Master: task %s completed\n", time.Now().String(), task.Filename)
@@ -161,7 +162,7 @@ func (c *Coordinator) Done() bool {
 	if c.R_remain == 0 && c.M_remain == 0 {
 		ret = true
 	}
-	c.mut.Unlock()
+	defer c.mut.Unlock()
 
 	return ret
 }
