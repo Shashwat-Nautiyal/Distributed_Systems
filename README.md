@@ -1,4 +1,4 @@
-The template for this repo is forked from `git://g.csail.mit.edu/6.5840-golabs-2025`.<br>
+The template for this repo is forked from `git://g.csail.mit.edu/6.5840-golabs-2025`, but the implementation is mine. <br>
 The repo will contain all the lab assingments for MIT-6.824: Distributed Systems. 
 
 
