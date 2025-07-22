@@ -59,6 +59,20 @@ src/
 
 ## Specific Design Choices
 
+Providing Map and Reduce functions dynamically at runtime via plugins.
+</br>
+| **Concept** | **Why It Matters** | **Lab Context** |
+| --- | --- | --- |
+| **Dynamic Loading** | Enables swapping Map/Reduce logic without recompiling workers | Lets you test different apps (wc, indexer) with same worker code |
+| **Type Assertion** | Ensures loaded functions match expected signatures | Prevents runtime errors |
+| **Plugin System** | Go-specific way to share compiled code | Alternative to RPC-based distribution |
+
+</br> </br>
+This specific implementation is meant for a single machine with threads cosplaying as worker nodes. Unix sockets seems like a better fit. 
+They are faster and lighter for communication between processes on the same machine, because they avoid the full network stack.  </br>
+
+
+
 | **Unix Domain Socket** | **TCP Socket** |
 |-------------------------|----------------|
 | Communicates via a file on disk | Communicates via an IP/port |
